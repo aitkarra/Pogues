@@ -1,0 +1,90 @@
+#----------------------------------------------------------------------------
+#  (\___/) (\_(\
+#  (='.'=) (=':') Conteneurisation de POGUES Backend
+#  (")_(") (,(")(")
+#
+# Proxy
+# npm config set proxy http://proxy-rie.http.insee.fr:8080
+# npm config set https-proxy http://proxy-rie.http.insee.fr:8080
+# yarn config set proxy http://proxy-rie.http.insee.fr:8080
+# yarn config set https-proxy http://proxy-rie.http.insee.fr:8080
+# Commandes :
+# PODMAN INSEE
+# - podman --log-level=debug compose -f docker-compose-dev-with-volumes.yml --env-file .env-container-intranet-insee --project-name pogues-frontend up
+# - podman --log-level=debug compose -f docker-compose-dev-with-volumes.yml --env-file .env-container-intranet-insee --project-name pogues-frontend up -d
+# - podman --log-level=debug compose -f docker-compose-dev-with-volumes.yml --env-file .env-container-intranet-insee --project-name pogues-frontend down
+# - podman --log-level=debug compose -f docker-compose-dev-with-volumes.yml --env-file .env-container-intranet-insee --project-name pogues-frontend down -v
+# - podman generate kube node > front.yml
+# DOCKER HORS INSEE
+# - docker --log-level=debug compose -f docker-compose-dev-with-volumes.yml --env-file .env-container --project-name pogues-frontend up
+# - docker --log-level=debug compose -f docker-compose-dev-with-volumes.yml --env-file .env-container --project-name pogues-frontend up -d
+# - docker --log-level=debug compose -f docker-compose-dev-with-volumes.yml --env-file .env-container --project-name pogues-frontend down
+# - docker --log-level=debug compose -f docker-compose-dev-with-volumes.yml --env-file .env-container --project-name pogues-frontend down -v
+# Pb au lancement du front via npm run start
+# - https://github.com/strapi/strapi/issues/12479
+# - mkdir -p /mnt/c/Windows/System32/WindowsPowerShell/v1.0 && touch $_/powershell.exe && chmod +x $_
+# Gestion du cache
+# https://github.com/containers/podman-compose/issues/205
+# - podman rmi --all
+# Liens
+# - http://localhost:3000
+#----------------------------------------------------------------------------
+
+x-node-volumes: &node-volumes
+  - ./:/app
+  - ./dist:/app/build
+
+version: '3.7'
+
+services:
+  build:
+    container_name: node
+#    image: docker.io/node:lts
+#    image: docker.io/node:16.20.2
+    image: ${IMAGE_NODE}
+#    image: proxy-docker-io.insee.fr/node:16.20.2
+#    build:
+#      context: frontend/
+#    restart: always
+    volumes: *node-volumes
+    ports:
+      - 3000:3000
+      - 5000:5000
+    expose:
+      - "3000"
+      - "5000"
+    environment:
+      PROXY_NPM_YARN: $PROXY_NPM_YARN
+      HTTP_PROXY: $ENV_HTTP_PROXY
+      HTTPS_PROXY: $ENV_HTTPS_PROXY
+      NO_PROXY: $ENV_NO_PROXY
+      RUNTIME_CONTAINER: $RUNTIME_CONTAINER
+    tty: true
+#    command: "/bin/bash"
+#    command: /bin/bash -c "mkdir -p /mnt/c/Windows/System32/WindowsPowerShell/v1.0 && touch $_/powershell.exe && chmod +x $_"
+#    command: /bin/bash -c "mkdir -p /mnt/c/Windows/System32/WindowsPowerShell/v1.0 && touch $_/powershell.exe && chmod '+x' $_/powershell.exe && sleep infinity"
+    command:
+      - /bin/bash
+      - -c
+      - |
+        if [[ $PROXY_NPM_YARN == "true" ]]; then echo "Set proxy !!!"; fi && sleep 1
+        if [[ $PROXY_NPM_YARN == "true" ]]; then npm config set proxy http://$$HTTP_PROXY; fi && sleep 1
+        if [[ $PROXY_NPM_YARN == "true" ]]; then npm config set https-proxy http://$$HTTPS_PROXY; fi && sleep 1
+        if [[ $PROXY_NPM_YARN == "true" ]]; then yarn config set proxy http://$$HTTP_PROXY; fi && sleep 1
+        if [[ $PROXY_NPM_YARN == "true" ]]; then yarn config set https-proxy http://$$HTTP_PROXY; fi && sleep 1
+        if [[ $RUNTIME_CONTAINER == "podman" ]]; then echo "Podman !!!"; fi && sleep 1
+        if [[ $RUNTIME_CONTAINER == "podman" ]]; then mkdir -p /mnt/c/Windows/System32/WindowsPowerShell/v1.0; fi && sleep 1
+        if [[ $RUNTIME_CONTAINER == "podman" ]]; then touch /mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe; fi && sleep 1
+        if [[ $RUNTIME_CONTAINER == "podman" ]]; then chmod '755' /mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe; fi && sleep 1
+        npm run start
+        sleep infinity
+    working_dir: /app
+#    network_mode: "host"
+    networks:
+      - frontend-pogues
+
+networks:
+  frontend-pogues:
+    name: backend-pogues
+    external: true
+
